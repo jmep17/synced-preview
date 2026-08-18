@@ -15,6 +15,8 @@ PC against real apps.
 | `SyncedPreviewProto.jsx` | Host React component (two iframes + event routing + divergence log) | Your Next.js app |
 | `sync-agent.js` | Capture/replay agent (self-contained, no build) | Inside each app-under-test, via script tag |
 | `local-demo.mjs` | Standalone 3-origin demo, no real apps needed | Anywhere with Node 18+ |
+| `IMPLEMENT-SYNCED-PREVIEW.md` | Self-contained implementation brief for the component (host + agent + ghost dot) | Read on the work PC |
+| `IMPLEMENT-ORIGIN-KEYED-MOCK.md` | Self-contained implementation brief for the mock-server fix | Read on the work PC |
 
 ## Step 0 — standalone smoke test (no work apps touched)
 
