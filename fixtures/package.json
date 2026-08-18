@@ -1,8 +1,8 @@
 {
-  "name": "synced-preview-crossorigin-proto",
+  "name": "fixtures",
   "private": true,
   "type": "module",
-  "description": "PROTOTYPE — THROWAWAY. Cross-origin synced-preview bridge demo.",
+  "description": "Dev-only apps-under-test + mocks for exercising the synced-preview bridge. Not vendored, not shipped.",
   "dependencies": {
     "react": "^18.3.1",
     "react-aria-components": "^1.5.0",

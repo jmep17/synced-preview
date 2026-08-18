@@ -1,13 +1,13 @@
 'use client';
-// PROTOTYPE — THROWAWAY. Cross-origin synced-preview host component.
+// synced-preview — Host component (ADR 0001).
 //
 // Renders two iframes pointed at two dev servers (different origins) and
 // routes serialized events between the sync agents running inside them
-// (sync-agent.js) over postMessage. The host never touches the frames'
-// DOM — that is the point: this prototype answers whether the mirroring
-// bridge works CROSS-ORIGIN.
+// (sync-agent.js) over postMessage. The Host never touches the frames'
+// DOM — the agent/host bridge is the whole design.
 //
 // Works in Next.js App Router as a client component; plain React otherwise.
+// Self-contained: peer dependency is react only. See README.md for vendoring.
 
 import React, { useEffect, useRef, useState } from 'react';
 
@@ -41,7 +41,19 @@ const S = {
   select: { padding: '3px 6px', borderRadius: 6, border: '1px solid #cbd5e1', font: 'inherit', background: '#fff', maxWidth: 220 },
 };
 
-export default function SyncedPreviewProto({ srcA, srcB, height = 560, branchPicker }) {
+/**
+ * @param {object} props
+ * @param {string} props.srcA          leader-default pane URL
+ * @param {string} [props.srcB]        mirror pane URL (ignored when branchPicker is set)
+ * @param {number} [props.height]
+ * @param {object} [props.branchPicker] optional branch picker for pane B:
+ *   listBranches: () => Promise<{ branches: string[], defaultBranch?: string, truncated?: boolean }>
+ *     — must be referentially stable (module-level or useCallback); it is an
+ *       effect dependency and an inline arrow would refetch every render.
+ *   resolvePreviewUrl: (branch: string) => string | Promise<string>
+ *   initialBranch?: string
+ */
+export default function SyncedPreview({ srcA, srcB, height = 560, branchPicker }) {
   const frameA = useRef(null), frameB = useRef(null), wrapA = useRef(null), wrapB = useRef(null);
   const chan = useRef({ A: null, B: null });
   const seqRef = useRef(0);
@@ -55,49 +67,34 @@ export default function SyncedPreviewProto({ srcA, srcB, height = 560, branchPic
   const stateRef = useRef(null);
   stateRef.current = { leader, enabled };
 
-  // Branch picker state (pane B only; see IMPLEMENT-SYNCED-PREVIEW.md).
+  // Branch picker state (pane B only).
   const [branches, setBranches] = useState(null);
   const [defaultBranch, setDefaultBranch] = useState(null);
+  const [truncated, setTruncated] = useState(false);
   const [targetBranch, setTargetBranch] = useState(branchPicker && branchPicker.initialBranch ? branchPicker.initialBranch : null);
   const [resolvedSrcB, setResolvedSrcB] = useState(null);
   const [resolving, setResolving] = useState(false);
   const [branchErr, setBranchErr] = useState(null);
   const resolveSeq = useRef(0);
+  const listBranches = branchPicker && branchPicker.listBranches;
 
   useEffect(() => {
-    if (!branchPicker) return;
-    const { owner, repo, token, apiBase = 'https://api.github.com' } = branchPicker;
-    const headers = { Accept: 'application/vnd.github+json' };
-    if (token) headers.Authorization = 'Bearer ' + token;
-    const base = apiBase.replace(/\/$/, '') + '/repos/' +
-      encodeURIComponent(owner) + '/' + encodeURIComponent(repo);
+    if (!listBranches) return;
     let dead = false;
     (async () => {
       try {
-        const repoRes = await fetch(base, { headers });
-        if (!repoRes.ok) throw new Error('GitHub ' + repoRes.status + ' fetching repo');
-        const def = (await repoRes.json()).default_branch;
-        const names = [];
-        let truncated = false;
-        for (let page = 1; page <= 3; page++) {           // cap: 300 branches
-          const r = await fetch(base + '/branches?per_page=100&page=' + page, { headers });
-          if (!r.ok) throw new Error('GitHub ' + r.status + ' fetching branches');
-          const batch = await r.json();
-          names.push(...batch.map(b => b.name));
-          if (batch.length < 100) break;
-          if (page === 3) truncated = true;
-        }
+        const { branches: names, defaultBranch: def, truncated: trunc } = await listBranches();
         if (dead) return;
-        names.sort((a, b) => (a === def ? -1 : b === def ? 1 : a.localeCompare(b)));
-        setDefaultBranch(def);
-        setBranches(truncated ? [...names, '__truncated__'] : names);
+        const sorted = [...names].sort((a, b) => (a === def ? -1 : b === def ? 1 : a.localeCompare(b)));
+        setDefaultBranch(def ?? null);
+        setTruncated(!!trunc);
+        setBranches(sorted);
       } catch (err) {
         if (!dead) { setBranchErr(String(err && err.message || err)); setBranches([]); }
       }
     })();
     return () => { dead = true; };
-  }, [branchPicker && branchPicker.owner, branchPicker && branchPicker.repo,
-      branchPicker && branchPicker.token, branchPicker && branchPicker.apiBase]);
+  }, [listBranches]);
 
   useEffect(() => {
     if (!branchPicker || !targetBranch) return;
@@ -211,10 +208,10 @@ export default function SyncedPreviewProto({ srcA, srcB, height = 560, branchPic
                 style={S.select}
               >
                 <option value="">{branches === null ? 'loading branches…' : '— target branch —'}</option>
-                {(branches ?? []).filter(n => n !== '__truncated__').map(n => (
+                {(branches ?? []).map(n => (
                   <option key={n} value={n}>{n === defaultBranch ? n + ' (default)' : n}</option>
                 ))}
-                {(branches ?? []).includes('__truncated__') && (
+                {truncated && (
                   <option value="" disabled>…more branches not listed</option>
                 )}
               </select>
@@ -239,7 +236,7 @@ export default function SyncedPreviewProto({ srcA, srcB, height = 560, branchPic
   return (
     <div style={S.root}>
       <div style={S.bar}>
-        <strong>synced-preview (cross-origin prototype)</strong>
+        <strong>synced-preview</strong>
         <span style={S.group}>
           <label style={{ display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' }}>
             <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} /> sync

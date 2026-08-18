@@ -1,0 +1,19 @@
+{
+  "name": "synced-preview-workspace",
+  "private": true,
+  "workspaces": [
+    "app",
+    "fixtures"
+  ],
+  "scripts": {
+    "dev": "concurrently -n vite,fixtures \"npm:dev -w app\" \"node fixtures/demo-server.mjs\"",
+    "dev:app": "npm run dev -w app",
+    "dev:fixtures": "node fixtures/demo-server.mjs",
+    "build": "npm run build -w app",
+    "preview": "npm run preview -w app",
+    "test": "node --test tools/mock-proxy/mock-proxy.test.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

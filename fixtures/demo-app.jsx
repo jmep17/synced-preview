@@ -1,10 +1,9 @@
-// PROTOTYPE — THROWAWAY. Demo app for the cross-origin bridge, adapted from
-// ../prototype-synced-preview.app.jsx with ONE change: members live on the
-// mock server (window.__MOCK_URL__) instead of in memory — GET /members on
-// mount, POST /members on "add". That makes the stateful-shared-mock desync
-// reproducible, and the origin-keyed fix demonstrable.
-// Compiled by local-demo.mjs at startup (esbuild, minified — the hostile
-// no-testids case, same as Part 5).
+// Fixture app-under-test for the synced-preview bridge (dev-only, not
+// vendored). Members live on the mock server (window.__MOCK_URL__) — GET
+// /members on mount, POST /members on "add" — so the stateful-shared-mock
+// desync is reproducible and the origin-keyed fix demonstrable.
+// Compiled by demo-server.mjs at startup (esbuild, minified — the hostile
+// no-testids case, same as docs/research.md Part 5).
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import {

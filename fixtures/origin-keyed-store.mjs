@@ -1,5 +1,5 @@
-// PROTOTYPE — but this module is the liftable piece: drop the pattern into
-// the real mock server to fix stateful mocks under live-compare.
+// Liftable piece: drop this pattern into the real mock server to fix
+// stateful mocks under live-compare.
 //
 // Problem: mirroring fires every interaction from BOTH panes, so one shared
 // stateful mock double-applies mutations and the panes desync through the

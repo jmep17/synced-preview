@@ -1,18 +1,18 @@
-// PROTOTYPE — THROWAWAY. Cross-origin sync agent for synced-preview.
+// synced-preview — Agent (ADR 0001). Canonical source; single copy — the
+// consuming app serves THIS file, never a duplicate (copies drift).
 //
 // Runs INSIDE each app-under-test (the pages shown in the two panes). The
-// host app serves this file (e.g. from Next.js public/) and the app under
-// test includes it with a plain script tag:
+// consuming app serves this file from its own origin and the app under test
+// includes it with a plain script tag:
 //
-//   <script src="http://localhost:3000/sync-agent.js"></script>
+//   <script src="http://<consuming-app-origin>/sync-agent.js"></script>
 //
 // It activates only when the page is inside an iframe. All postMessage
 // traffic is restricted to the origin this script was served from (= the
-// host app's origin), both directions.
+// consuming app's origin), both directions.
 //
-// SyncCore below is lifted VERBATIM from prototype-synced-preview.html
-// lines 350-549 (validated same-origin — docs/research.md Part 5). The
-// wiring after it is the cross-origin part this prototype exists to test.
+// SyncCore was validated same-origin (docs/research.md Part 5) and the
+// cross-origin wiring validated in Part 6; treat both as evidence-backed.
 (function () {
   'use strict';
   if (window === window.parent) return; // not framed — inert

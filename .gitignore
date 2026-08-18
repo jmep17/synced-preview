@@ -1,1 +1,3 @@
 dev-proxy/session.env
+node_modules/
+app/dist/

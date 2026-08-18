@@ -1,32 +1,32 @@
-// PROTOTYPE — THROWAWAY. Standalone cross-origin demo, no work apps needed.
+// Dev-only fixture servers for the synced-preview bridge. Not vendored.
 //
-//   cd prototype-crossorigin && npm install && node local-demo.mjs
-//   → open http://localhost:4400/
+//   node fixtures/demo-server.mjs            # origin-keyed mock (the fix)
+//   node fixtures/demo-server.mjs --shared-mock   # reproduce the desync
 //
-// Serves three origins:
-//   :4400  host page (the SyncedPreviewProto React component) + sync-agent.js
+// Serves four origins (the host is the Vite app on :5173, started separately
+// via `npm run dev` — its panes embed these):
 //   :4401  demo app, branch A ("main")
 //   :4402  demo app, branch B ("feature/team-v2") — deliberately divergent
+//   :4403  stateful mock backend both apps call
+//   :4404  stub GitHub API (branch picker demo, offline + deterministic)
 //
-// The demo app is the compiled React 18 + react-aria-components bundle
-// extracted at runtime from ../prototype-synced-preview.html, so the
-// cross-origin run is directly comparable to the same-origin findings in
-// docs/research.md Part 5.
+// The demo app is compiled fresh at startup with esbuild, minified — the
+// hostile no-testids case, directly comparable to docs/research.md Part 5.
+// Pane pages load the agent from the Vite origin, exercising the real
+// serving path (the serve-sync-agent plugin in app/vite.config.js).
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import esbuild from 'esbuild';
 import { createMockStore } from './origin-keyed-store.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const HOST = 4400, PORT_A = 4401, PORT_B = 4402, PORT_MOCK = 4403, PORT_GH = 4404;
+const APP_ORIGIN = process.env.SP_APP_ORIGIN || 'http://localhost:5173';
+const PORT_A = 4401, PORT_B = 4402, PORT_MOCK = 4403, PORT_GH = 4404;
 // --shared-mock reproduces the stateful-shared-mock desync; default is the
 // origin-keyed fix.
 const SHARED = process.argv.includes('--shared-mock');
 
-// Demo app (fetches members from the mock server) compiled fresh, minified —
-// same hostile no-testids case as Part 5.
 const appBuild = await esbuild.build({
   entryPoints: [join(here, 'demo-app.jsx')],
   bundle: true, minify: true, write: false, format: 'iife', jsx: 'automatic',
@@ -34,7 +34,6 @@ const appBuild = await esbuild.build({
 });
 const BUNDLE = appBuild.outputFiles[0].text;
 
-// Branch config + app CSS copied from prototype-synced-preview.html (280-342).
 const BRANCHES = {
   A: { id: 'A', label: 'main', accent: '#4f46e5',
        inviteLabel: 'Add member', extraMenuItem: false, frontCard: null },
@@ -100,7 +99,8 @@ function appPage(branch) {
     '<!doctype html><html><head><meta charset="utf-8">',
     '<title>demo app ' + branch.id + '</title>',
     // The agent goes in <head>, exactly as an app-under-test would include it.
-    '<script src="http://localhost:' + HOST + '/sync-agent.js"></' + 'script>',
+    // Served by the Vite dev server (or preview) — the real serving path.
+    '<script src="' + APP_ORIGIN + '/sync-agent.js"></' + 'script>',
     '<script>window.__BRANCH__=' + JSON.stringify(branch) + ';' +
       'window.__MOCK_URL__="http://localhost:' + PORT_MOCK + '";</' + 'script>',
     '<style>:root{--accent:' + branch.accent + '}</style>',
@@ -111,40 +111,6 @@ function appPage(branch) {
   ].join('\n');
 }
 
-const entry = `
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import SyncedPreviewProto from './SyncedPreviewProto.jsx';
-createRoot(document.getElementById('root')).render(
-  React.createElement(SyncedPreviewProto, {
-    srcA: 'http://localhost:${PORT_A}/',
-    branchPicker: {
-      owner: 'demo', repo: 'webapp',
-      apiBase: 'http://localhost:${PORT_GH}',
-      initialBranch: 'feature/team-v2',
-      resolvePreviewUrl: (b) => b === 'main'
-        ? 'http://localhost:${PORT_A}/'
-        : 'http://localhost:${PORT_B}/',
-    },
-    height: 520,
-  })
-);
-`;
-
-const built = await esbuild.build({
-  stdin: { contents: entry, resolveDir: here, loader: 'jsx' },
-  bundle: true, write: false, format: 'iife', jsx: 'automatic',
-  define: { 'process.env.NODE_ENV': '"production"' },
-});
-const HOST_JS = built.outputFiles[0].text;
-const AGENT_JS = readFileSync(join(here, 'sync-agent.js'), 'utf8');
-
-const HOST_HTML = [
-  '<!doctype html><html><head><meta charset="utf-8"><title>synced-preview cross-origin demo</title>',
-  '<style>body{margin:16px;background:#f8fafc}</style></head>',
-  '<body><div id="root"></div><script src="/host.js"></' + 'script></body></html>',
-].join('\n');
-
 createServer((req, res) => {
   res.setHeader('content-type', 'text/html; charset=utf-8');
   res.end(appPage(BRANCHES.A));
@@ -154,19 +120,6 @@ createServer((req, res) => {
   res.setHeader('content-type', 'text/html; charset=utf-8');
   res.end(appPage(BRANCHES.B));
 }).listen(PORT_B);
-
-createServer((req, res) => {
-  if (req.url === '/host.js') {
-    res.setHeader('content-type', 'application/javascript; charset=utf-8');
-    res.end(HOST_JS);
-  } else if (req.url === '/sync-agent.js') {
-    res.setHeader('content-type', 'application/javascript; charset=utf-8');
-    res.end(AGENT_JS);
-  } else {
-    res.setHeader('content-type', 'text/html; charset=utf-8');
-    res.end(HOST_HTML);
-  }
-}).listen(HOST);
 
 /* ---------- stateful mock server (the shared backend both branches call) ---------- */
 
@@ -225,8 +178,7 @@ createServer((req, res) => {
   } else { res.writeHead(404); res.end('{}'); }
 }).listen(PORT_GH);
 
-console.log('synced-preview cross-origin demo:');
-console.log('  host  http://localhost:' + HOST + '/   ← open this');
+console.log('synced-preview fixtures (host = Vite app, ' + APP_ORIGIN + '):');
 console.log('  app A http://localhost:' + PORT_A + '/');
 console.log('  app B http://localhost:' + PORT_B + '/');
 console.log('  mock  http://localhost:' + PORT_MOCK + '/  (' + mock.mode + ')');

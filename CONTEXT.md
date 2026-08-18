@@ -22,5 +22,8 @@ Domain terms. Use these exactly; don't drift to synonyms.
   (parent `inert` alone cannot — research Part 5 trap 1).
 - **Ghost cursor** — the mirror-pane dot marking where a replayed pointer
   event landed.
+- **Fixtures** — dev-only apps under test plus their mock backends
+  (`fixtures/`), used to exercise the bridge without real work apps. Never
+  vendored, never shipped.
 
 Decisions: see docs/adr/. Evidence base: docs/research.md (Parts 5–6).

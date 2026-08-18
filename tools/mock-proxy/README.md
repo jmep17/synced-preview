@@ -18,9 +18,9 @@ pane. Both panes are real running apps, so a single click fires the same API
 call twice — once from each pane. A shared mock backend applies that
 mutation twice and the panes desync. mock-proxy keys all mutable mock state
 by the calling request's `Origin` header, so each pane gets its own isolated
-copy and one click produces one change per pane. See
-`../../prototype-crossorigin/IMPLEMENT-ORIGIN-KEYED-MOCK.md` for the
-measured before/after.
+copy and one click produces one change per pane. The pattern is demonstrated
+in `../../fixtures/origin-keyed-store.mjs`; reproduce the broken shared mode
+with `node fixtures/demo-server.mjs --shared-mock`.
 
 To use it with live-compare: point both apps under test's API base URL at
 the proxy. Because each pane runs on its own origin (different port or
