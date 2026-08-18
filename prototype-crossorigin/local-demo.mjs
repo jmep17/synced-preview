@@ -17,14 +17,22 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import esbuild from 'esbuild';
+import { createMockStore } from './origin-keyed-store.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const HOST = 4400, PORT_A = 4401, PORT_B = 4402;
+const HOST = 4400, PORT_A = 4401, PORT_B = 4402, PORT_MOCK = 4403;
+// --shared-mock reproduces the stateful-shared-mock desync; default is the
+// origin-keyed fix.
+const SHARED = process.argv.includes('--shared-mock');
 
-const protoHtml = readFileSync(join(here, '..', 'prototype-synced-preview.html'), 'utf8');
-const m = protoHtml.match(/<script type="text\/plain" id="app-bundle">([\s\S]*?)<\/script>/);
-if (!m) { console.error('could not extract #app-bundle from ../prototype-synced-preview.html'); process.exit(1); }
-const BUNDLE = m[1];
+// Demo app (fetches members from the mock server) compiled fresh, minified —
+// same hostile no-testids case as Part 5.
+const appBuild = await esbuild.build({
+  entryPoints: [join(here, 'demo-app.jsx')],
+  bundle: true, minify: true, write: false, format: 'iife', jsx: 'automatic',
+  define: { 'process.env.NODE_ENV': '"production"' },
+});
+const BUNDLE = appBuild.outputFiles[0].text;
 
 // Branch config + app CSS copied from prototype-synced-preview.html (280-342).
 const BRANCHES = {
@@ -93,7 +101,8 @@ function appPage(branch) {
     '<title>demo app ' + branch.id + '</title>',
     // The agent goes in <head>, exactly as an app-under-test would include it.
     '<script src="http://localhost:' + HOST + '/sync-agent.js"></' + 'script>',
-    '<script>window.__BRANCH__=' + JSON.stringify(branch) + ';</' + 'script>',
+    '<script>window.__BRANCH__=' + JSON.stringify(branch) + ';' +
+      'window.__MOCK_URL__="http://localhost:' + PORT_MOCK + '";</' + 'script>',
     '<style>:root{--accent:' + branch.accent + '}</style>',
     '<style>' + APP_CSS + '</style>',
     '</head><body><div id="root" style="padding:20px;color:#94a3b8;font:13px system-ui">Booting compiled React app…</div>',
@@ -152,7 +161,50 @@ createServer((req, res) => {
   }
 }).listen(HOST);
 
+/* ---------- stateful mock server (the shared backend both branches call) ---------- */
+
+const BASE_MEMBERS = [
+  { name: 'Ada Lovelace', role: 'Engineering' },
+  { name: 'Grace Hopper', role: 'Compilers' },
+  { name: 'Alan Turing', role: 'Research' },
+  { name: 'Katherine Johnson', role: 'Research' },
+  { name: 'Margaret Hamilton', role: 'Engineering' },
+  { name: 'Radia Perlman', role: 'Networking' },
+  { name: 'Barbara Liskov', role: 'Research' },
+  { name: 'Frances Allen', role: 'Compilers' },
+  { name: 'Annie Easley', role: 'Engineering' },
+  { name: 'Mary Jackson', role: 'Aerodynamics' },
+];
+
+const mock = createMockStore({ shared: SHARED, seed: () => ({ members: BASE_MEMBERS.slice() }) });
+
+createServer((req, res) => {
+  // CORS: reflect the caller's origin (cannot be '*' if credentials ever
+  // matter, and reflecting is what makes Origin available to key on).
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type');
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+  res.setHeader('content-type', 'application/json; charset=utf-8');
+
+  const store = mock.storeFor(req);
+  if (req.url === '/members' && req.method === 'GET') {
+    res.end(JSON.stringify({ members: store.members, mode: mock.mode }));
+  } else if (req.url === '/members' && req.method === 'POST') {
+    store.members = [...store.members, { name: 'New Member ' + (store.members.length + 1), role: 'Pending' }];
+    res.end(JSON.stringify({ members: store.members, mode: mock.mode }));
+  } else if (req.url === '/reset' && req.method === 'POST') {
+    store.members = BASE_MEMBERS.slice();
+    res.end(JSON.stringify({ members: store.members, mode: mock.mode }));
+  } else {
+    res.writeHead(404); res.end('{}');
+  }
+}).listen(PORT_MOCK);
+
 console.log('synced-preview cross-origin demo:');
 console.log('  host  http://localhost:' + HOST + '/   ← open this');
 console.log('  app A http://localhost:' + PORT_A + '/');
 console.log('  app B http://localhost:' + PORT_B + '/');
+console.log('  mock  http://localhost:' + PORT_MOCK + '/  (' + mock.mode + ')');

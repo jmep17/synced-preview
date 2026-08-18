@@ -32,6 +32,14 @@ only` (branch B renamed the button); leader **B** then Actions → "Archive
 team" logs `✕ NO MATCH in A`; Settings navigation and the Public-profile
 switch mirror; latency counter shows ~10–30 ms avg.
 
+The demo now includes a **stateful mock backend** (port 4403) that both demo
+apps call, mirroring the live-compare architecture. Default mode is the
+origin-keyed fix: clicking "Add member" once adds exactly one member to each
+pane and they stay identical. Run `node local-demo.mjs --shared-mock` to see
+the unfixed failure mode: one click double-applies (two new members in the
+store) and the panes desync. The fix and how to apply it to the real mock
+server: `IMPLEMENT-ORIGIN-KEYED-MOCK.md`.
+
 ## Step 1 — wire into your Next.js app (the host)
 
 1. Copy `SyncedPreviewProto.jsx` into the app, e.g. `app/synced-preview/SyncedPreviewProto.jsx`.
@@ -147,13 +155,11 @@ same-origin is the easier case.
   spurious `△`/`✕` entries during the transition.
 - **Stateful shared mock server**: every mirrored interaction fires an API
   call from BOTH panes against the one mock server, so mutations
-  double-apply and panes can desync through the backend even when the
-  bridge mirrored correctly. Not a bridge failure. Workarounds until fixed
-  at the mock server: key the mock's state store by the request's `Origin`
-  header (each dev server has a distinct origin; cross-origin fetches always
-  carry it), or serve stateless/canned responses while comparing. If panes
-  desync right after a mutation (add/save/toggle that hits the API), suspect
-  this first.
+  double-apply and panes desync through the backend even when the bridge
+  mirrored correctly. Not a bridge failure. The fix (origin-keyed state) is
+  specified in `IMPLEMENT-ORIGIN-KEYED-MOCK.md` and demonstrated working in
+  `local-demo.mjs` (broken mode: `--shared-mock`). Until the real mock
+  server has it, expect desync right after any mutation that hits the API.
 
 ## What to report back
 
