@@ -145,6 +145,15 @@ same-origin is the easier case.
 - React 18.3 validated; React 19 untested.
 - SPA client-side route changes that re-render everything may produce
   spurious `△`/`✕` entries during the transition.
+- **Stateful shared mock server**: every mirrored interaction fires an API
+  call from BOTH panes against the one mock server, so mutations
+  double-apply and panes can desync through the backend even when the
+  bridge mirrored correctly. Not a bridge failure. Workarounds until fixed
+  at the mock server: key the mock's state store by the request's `Origin`
+  header (each dev server has a distinct origin; cross-origin fetches always
+  carry it), or serve stateless/canned responses while comparing. If panes
+  desync right after a mutation (add/save/toggle that hits the API), suspect
+  this first.
 
 ## What to report back
 
