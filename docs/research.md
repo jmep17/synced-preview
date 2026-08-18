@@ -326,3 +326,9 @@ Everything below is **empirical**: observed in Chrome 151 (macOS) on 2026-08-18 
 ### Verdict
 
 **Cross-origin is viable.** The bridge survives the loss of `contentDocument` intact: every Part 5 mirroring behavior reproduced across origins with ~15 ms added round-trip, and the agent/host split (agent = capture+replay+focus, host = routing+divergence UI) is the natural component seam. The real component should be built on this architecture; same-origin becomes a special case, not the design center.
+
+### Addendum: stateful shared mock backend (2026-08-18)
+
+The live-compare deployment has both branch dev servers calling **one stateful mock server**. Mirroring fires every interaction from both panes, so mutations double-apply and the panes desync *through the backend* even when the bridge mirrors perfectly. Demonstrated empirically (demo app extended with a members API; `local-demo.mjs --shared-mock`): one "Add member" click → shared store gained two members, pane A rendered 11, pane B rendered 12.
+
+Fix, validated in the same demo: **key the mock's state store by the request's `Origin` header** (each dev server is a distinct origin — scheme+host+port — and browsers always send `Origin` on cross-origin fetches: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Origin). Same click with origin-keying → each origin's store gained exactly one identical member; panes stayed identical. Liftable module: `prototype-crossorigin/origin-keyed-store.mjs`; implementation brief for the consuming app's mock server: `prototype-crossorigin/IMPLEMENT-ORIGIN-KEYED-MOCK.md`.
