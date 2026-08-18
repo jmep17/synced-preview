@@ -4,27 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A research-notes repository, not a codebase. It contains a single deliverable: `README.md`, a sourced survey of options for embedding interactive web-app previews and doing side-by-side/diff comparison of them. There is no build, lint, or test tooling, and it is not a git repository.
+A standalone component project: **synced-preview**, a React component that renders two same-origin iframe previews side by side and mirrors interactions (clicks, hover, typing, keyboard, navigation, scroll) from a leader pane into a mirror pane, surfacing divergence between the two DOMs as first-class UI.
 
-## Conventions for editing README.md
+The component is built here and **vendored** (copied as a source folder) into a consuming app on a separate machine. It is not published to npm.
 
-The document follows strict evidence rules (stated in its preamble). Preserve them when adding or updating content:
+## Status
 
-- Every claim is backed by a primary source (official docs, GitHub repos, npm registry, WHATWG/W3C specs, MDN) with the URL cited inline next to the claim.
-- Anything that cannot be traced to a primary source is explicitly marked **unverified** — including "absence" claims (e.g. "none found" rather than "none exists").
-- npm version numbers and publish dates come from registry.npmjs.org and state the retrieval date.
-- Dated snapshots: the doc records when research was done (e.g. "Researched 2026-08-18"). When updating facts later, re-verify against sources and update the date rather than silently editing.
+Pre-implementation. The public interface is not settled yet — see `CONTEXT.md` and `docs/adr/` once they exist (created lazily during grilling; see `docs/agents/domain.md`).
 
-## Structure
+No build, lint, or test tooling exists yet. Add the commands to this file when they are scaffolded.
 
-- **TL;DR / Recommendations** at top — decision-oriented summary, kept in sync with the body.
-- **Part 1** — embedding options (iframe primitives, Sandpack, WebContainers, StackBlitz/CodeSandbox, react-live, micro-frontends). Comparison table first, then per-tool sections.
-- **Part 2** — diffing (pixel-diff engines, DOM capture/diff, synchronized browsing). Comparison tables with license and last-publish columns.
-- **Part 3** — composed recipes (A–D) pairing embedding with diffing, plus a bottom-line pairings table.
-- **Sources** — grouped link list; new citations get added here as well as inline.
-- **Part 4+** — follow-up questions appended as new dated parts rather than rewritten into earlier sections.
+## Constraints
 
-New research follows the same pattern: append a dated part, cite inline, extend the Sources section.
+- **Self-contained**: the component must live in one folder with no imports from outside it, so it can be dropped into a consuming app's `src/components/`.
+- **Peer dependencies only** (e.g. `react`); no app-specific dependencies.
+
+## Primary sources
+
+- `docs/research.md` — sourced survey of embedding + diffing options (researched 2026-08-18). Part 5 records the empirical findings the component is built on: what mirrors correctly, divergence behavior, and five traps (focus shadowing, re-entrancy guard, CDN ESM builds, `:hover` vs `data-hovered`, portal unmount races). Follow its evidence rules when editing it: every claim cites a primary source inline, unverifiable claims are marked **unverified**, and updated facts get re-verified with a new date rather than silently edited.
+- `prototype-synced-preview.html` + `prototype-synced-preview.app.jsx` — the throwaway prototype that produced those findings. Keep as reference until the component supersedes it, then delete (git history keeps it).
 
 ## Agent skills
 
