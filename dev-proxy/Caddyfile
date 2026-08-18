@@ -1,0 +1,62 @@
+# Local dev proxy for the synced-preview panes.
+#
+# One origin (localhost:3000) fronting two dev servers, so both panes are
+# same-origin with each other (required for DOM mirroring) and Auth0's
+# port-3000-only callback allowlist is satisfied without allowlist access:
+#
+#   /b/*            -> pane B dev server (default localhost:5174),
+#                      must run with basePath '/b' (Vite: base '/b/')
+#   everything else -> pane A dev server (default localhost:5173),
+#                      runs UNCHANGED at root — no basePath, same callback
+#                      path Auth0 already allows. All login goes through
+#                      pane A.
+#
+# Pane B never initiates login (its redirect URI would carry /b and be
+# rejected). It reuses pane A's session cookie: same origin + same
+# AUTH0_SECRET in both instances = shared session.
+#
+# Login-once across fresh browser profiles: if APP_SESSION is set (see
+# session.env.example / run.sh), the proxy appends
+# "<SESSION_COOKIE_NAME>=<APP_SESSION>" to any request that arrives
+# without that cookie. Capture the value once after a real login
+# (DevTools > Application > Cookies > localhost:3000). Recapture when the
+# session expires.
+#
+# Env vars: PANE_A_PORT (5173), PANE_B_PORT (5174),
+#           SESSION_COOKIE_NAME (appSession), APP_SESSION (unset = no injection)
+{
+	auto_https off
+	admin off
+}
+
+:3000 {
+	route {
+		@bNoSession {
+			path /b/*
+			not header Cookie *{$SESSION_COOKIE_NAME:appSession}=*
+		}
+		handle @bNoSession {
+			reverse_proxy localhost:{$PANE_B_PORT:5174} {
+				header_up +Cookie "{$SESSION_COOKIE_NAME:appSession}={$APP_SESSION}"
+			}
+		}
+
+		handle /b/* {
+			reverse_proxy localhost:{$PANE_B_PORT:5174}
+		}
+
+		@aNoSession {
+			not path /b/*
+			not header Cookie *{$SESSION_COOKIE_NAME:appSession}=*
+		}
+		handle @aNoSession {
+			reverse_proxy localhost:{$PANE_A_PORT:5173} {
+				header_up +Cookie "{$SESSION_COOKIE_NAME:appSession}={$APP_SESSION}"
+			}
+		}
+
+		handle {
+			reverse_proxy localhost:{$PANE_A_PORT:5173}
+		}
+	}
+}
