@@ -20,7 +20,7 @@ import esbuild from 'esbuild';
 import { createMockStore } from './origin-keyed-store.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const HOST = 4400, PORT_A = 4401, PORT_B = 4402, PORT_MOCK = 4403;
+const HOST = 4400, PORT_A = 4401, PORT_B = 4402, PORT_MOCK = 4403, PORT_GH = 4404;
 // --shared-mock reproduces the stateful-shared-mock desync; default is the
 // origin-keyed fix.
 const SHARED = process.argv.includes('--shared-mock');
@@ -118,7 +118,14 @@ import SyncedPreviewProto from './SyncedPreviewProto.jsx';
 createRoot(document.getElementById('root')).render(
   React.createElement(SyncedPreviewProto, {
     srcA: 'http://localhost:${PORT_A}/',
-    srcB: 'http://localhost:${PORT_B}/',
+    branchPicker: {
+      owner: 'demo', repo: 'webapp',
+      apiBase: 'http://localhost:${PORT_GH}',
+      initialBranch: 'feature/team-v2',
+      resolvePreviewUrl: (b) => b === 'main'
+        ? 'http://localhost:${PORT_A}/'
+        : 'http://localhost:${PORT_B}/',
+    },
     height: 520,
   })
 );
@@ -203,8 +210,24 @@ createServer((req, res) => {
   }
 }).listen(PORT_MOCK);
 
+/* ---------- stub GitHub API (branch picker demo, offline + deterministic) ---------- */
+
+createServer((req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'authorization, accept');
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+  res.setHeader('content-type', 'application/json; charset=utf-8');
+  const path = new URL(req.url, 'http://x').pathname;
+  if (path === '/repos/demo/webapp') {
+    res.end(JSON.stringify({ default_branch: 'main' }));
+  } else if (path === '/repos/demo/webapp/branches') {
+    res.end(JSON.stringify([{ name: 'feature/team-v2' }, { name: 'main' }]));
+  } else { res.writeHead(404); res.end('{}'); }
+}).listen(PORT_GH);
+
 console.log('synced-preview cross-origin demo:');
 console.log('  host  http://localhost:' + HOST + '/   ← open this');
 console.log('  app A http://localhost:' + PORT_A + '/');
 console.log('  app B http://localhost:' + PORT_B + '/');
 console.log('  mock  http://localhost:' + PORT_MOCK + '/  (' + mock.mode + ')');
+console.log('  gh    http://localhost:' + PORT_GH + '/  (stub GitHub API)');
