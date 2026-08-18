@@ -75,6 +75,59 @@ export default function Page() {
 }
 ```
 
+## Optional: branch picker for pane B
+
+Instead of a fixed `srcB`, pane B can offer a dropdown that lists a GitHub
+repo's branches and lets the reviewer pick the target branch to compare
+against `srcA`. Pass a `branchPicker` prop instead of `srcB`:
+
+```jsx
+<SyncedPreviewProto
+  srcA="http://localhost:3001/"          // pane A: the main-branch preview, unchanged
+  branchPicker={{
+    owner: 'acme',                        // GitHub organization or user (required)
+    repo: 'webapp',                       // repository name (required)
+    token: undefined,                     // optional; for private repos / rate limits
+    apiBase: 'https://api.github.com',    // optional override (used by the demo's stub)
+    initialBranch: undefined,             // optional; branch to auto-select on mount
+    resolvePreviewUrl: (branchName) => …, // required; returns string | Promise<string>
+  }}
+  height={600}
+/>
+```
+
+**Behavior contract:**
+
+- Without `branchPicker`: behavior is byte-for-byte what it is today — `srcB`
+  drives pane B. Backward compatible.
+- With `branchPicker`: `srcB` is ignored. Pane B's header gains a native
+  `<select>` listing the repo's branches (default branch first, then
+  alphabetical). Selecting a branch calls `resolvePreviewUrl(branchName)`;
+  the returned URL becomes pane B's iframe `src`. Until a branch is selected
+  and resolved, pane B shows a placeholder ("select a target branch") instead
+  of an iframe.
+- On every pane B URL change: pane B's agent channel and connected flag
+  reset, and the mirrored/miss counters, latency stats, and divergence log
+  clear (divergence measured against the previous branch is meaningless for
+  the new one). The leader setting is left alone.
+- Fetch or resolve errors render as a short inline error message in pane B's
+  header row. No automatic retries; re-selecting a branch retries
+  resolution.
+
+**Division of responsibility:** the Host lists branches (via the GitHub API)
+and renders the selection UI. The **consuming app** owns mapping a branch
+name to a running app-under-test URL, via `resolvePreviewUrl` — spinning up
+branch dev servers or preview deployments is out of the component's scope.
+The component cannot start dev servers or deployments; it can only ask
+"given this branch name, what URL should pane B point at?"
+
+**Security note on `token`:** it is exposed to the browser page like any
+other prop. Use a fine-grained personal access token scoped to the one repo,
+read-only (Contents/Metadata), short expiry, development only. Never
+hardcode it — pass it from the consuming app's dev-only config.
+Unauthenticated requests work for public repos, within GitHub's 60
+requests/hour/IP limit.
+
 ## Step 2 — inject the agent into each app-under-test
 
 Each app shown in a pane must load the agent. Either:
@@ -284,6 +337,9 @@ With both dev servers, the host app, and the (origin-keyed) mock running:
 | 13 | While A is leader, click inside B | Nothing happens (inert), leader keeps focus and typing |
 | 14 | Latency readout | avg well under 100 ms locally (reference measured 13–21 ms avg) |
 | 15 | App errors panel | stays empty |
+| 16 | (with `branchPicker`) Load page | Dropdown lists branches, default branch first + labeled; `initialBranch` preselected and resolved |
+| 17 | (with `branchPicker`) Switch target branch | Pane B reloads to the newly resolved URL; mirrored/miss counters, latency, and divergence log reset; agent reconnects |
+| 18 | (with `branchPicker`) GitHub fetch fails | Inline error shown in pane B's header; pane A and the rest of the UI keep working |
 
 ## What NOT to do
 
