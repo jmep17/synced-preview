@@ -83,6 +83,28 @@ traffic to the origin it was served from)
 The agent is inert unless the page is inside an iframe, so leaving it in
 during normal dev is harmless — but keep the env guard anyway.
 
+### Alternative: inject via the mock proxy (zero app changes)
+
+If the dev servers already sit behind a mock/proxy server (the live-compare
+setup), inject the tag there instead of touching each app — rewrite proxied
+HTML responses:
+
+```js
+// concept — adapt to whatever the proxy is built with
+if (res.getHeader('content-type')?.includes('text/html')) {
+  body = body.replace(
+    '</head>',
+    '<script src="http://localhost:3000/sync-agent.js"></script></head>'
+  );
+  // strip content-length / content-encoding if you buffer + rewrite
+}
+```
+
+Then point `srcA`/`srcB` at the **proxy** URLs, not the raw dev-server
+ports. Same-origin proxy paths (e.g. `/preview/main/`, `/preview/branch/`)
+work too — the bridge doesn't care; it was validated cross-origin, and
+same-origin is the easier case.
+
 ## Step 3 — run
 
 1. Start the two app-under-test dev servers (e.g. main worktree on :3001,
