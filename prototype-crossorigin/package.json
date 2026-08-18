@@ -1,0 +1,14 @@
+{
+  "name": "synced-preview-crossorigin-proto",
+  "private": true,
+  "type": "module",
+  "description": "PROTOTYPE — THROWAWAY. Cross-origin synced-preview bridge demo.",
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-aria-components": "^1.5.0",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
