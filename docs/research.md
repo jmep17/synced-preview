@@ -18,7 +18,7 @@ Researched 2026-08-18 against primary sources (official docs, GitHub, npm regist
 - **CI-grade**: Playwright `toHaveScreenshot` (pixelmatch under the hood) or BackstopJS. Commercial clouds (Chromatic, Percy, Argos) all have ~5,000-screenshot free tiers.
 - **Interaction sync between two panes**: nothing off-the-shelf syncs two *arbitrary* iframes. Browsersync `ghostMode` mirrors clicks/scrolls/forms across browsers viewing the *same* Browsersync URL; Polypane (commercial desktop browser) syncs its own panes; rrweb live-mode mirrors into a second pane but the mirror is a script-disabled replay, not a live app. For two same-origin iframes you write a small event-forwarding bridge yourself.
 
-**Part 3 — the composable stack**: two same-origin sandboxed iframes (srcdoc/blob or same-origin URLs) → parent reads both `contentDocument`s → DOM diff (diffDOM / rrweb-snapshot) and/or DOM-to-canvas render (html-to-image) → pixelmatch on the two `ImageData`s → overlay. Interaction mirroring via a capture-phase listener in pane A re-dispatched in pane B (synthetic events are `isTrusted:false`, so default actions may not fire). For cross-origin third-party apps, in-browser capture is impossible; fall back to server-side Playwright or Chrome-only Element Capture. **Part 5 validates the mirroring bridge empirically** — a working prototype (`prototype-synced-preview.html`) mirrors clicks, hovers, menus/portals, typing, navigation, and scroll between two compiled React 18 + react-aria-components apps, including graceful degradation when the two DOMs diverge.
+**Part 3 — the composable stack**: two same-origin sandboxed iframes (srcdoc/blob or same-origin URLs) → parent reads both `contentDocument`s → DOM diff (diffDOM / rrweb-snapshot) and/or DOM-to-canvas render (html-to-image) → pixelmatch on the two `ImageData`s → overlay. Interaction mirroring via a capture-phase listener in pane A re-dispatched in pane B (synthetic events are `isTrusted:false`, so default actions may not fire). For cross-origin third-party apps, in-browser capture is impossible; fall back to server-side Playwright or Chrome-only Element Capture. **Part 5 validates the mirroring bridge empirically** — a working prototype (`prototype-synced-preview.html`) mirrors clicks, hovers, menus/portals, typing, navigation, and scroll between two compiled React 18 + react-aria-components apps, including graceful degradation when the two DOMs diverge. **Part 6 removes the same-origin constraint**: the same bridge re-validated cross-origin (agent script in each pane + postMessage routing, ~15 ms added latency) as a Next.js-compatible React component on branch `prototype/crossorigin-component`.
 
 ---
 
@@ -289,3 +289,40 @@ Target descriptors carry an ordered strategy list: stable `id` → `data-testid`
 ### Verdict
 
 Recipe A's bridge is **viable for same-origin compiled React apps**, including react-aria-components' pointer/keyboard event system, with two engineering obligations: focus shadowing in the mirror pane, and semantic target resolution (accessible names, or better, real `data-testid`s in the product) with divergence surfaced as first-class UI. Unverified beyond this setup: file:// + `srcdoc` hash routing, browsers other than Chrome, React 19, drag-and-drop, and text selection.
+
+---
+
+## Part 6 — Prototype: the bridge cross-origin, as a React component (2026-08-18)
+
+Part 5's same-origin constraint dropped. Question: does the same mirroring bridge work when the two panes are **different origins** (two dev servers on different localhost ports — the visual-regression use case, where origin = scheme+host+port makes every dev server cross-origin: https://developer.mozilla.org/en-US/docs/Web/Security/Same-origin_policy) and the host page holds **no** `contentDocument` access?
+
+Prototype on branch `prototype/crossorigin-component`, directory `prototype-crossorigin/`:
+
+- **`sync-agent.js`** — runs *inside* each app-under-test (included via one script tag; inert outside an iframe). Contains `SyncCore` lifted verbatim from `prototype-synced-preview.html:350-549`, plus capture (capture-phase, passive, rAF-coalesced pointermove), local replay, local focus shadowing, local ghost cursor. All messaging pinned to the origin the script was served from (`document.currentScript.src`), both directions.
+- **`SyncedPreviewProto.jsx`** — `'use client'` React component (Next.js-compatible): two iframes, postMessage router (hello/init/event/replay/result/state), leader A|B|both, divergence log, latency readout. Never touches frame DOM.
+- **`local-demo.mjs`** — three-origin demo (`:4400` host, `:4401`/`:4402` branch A/B of the Part 5 compiled demo app, extracted from the prototype HTML at runtime).
+
+Everything below is **empirical**: observed in Chrome 151 (macOS) on 2026-08-18 driving `local-demo.mjs` with real input. The prototype is the primary source; re-run it to re-verify.
+
+### Verified cross-origin (same behaviors as Part 5)
+
+- Controlled-TextField typing, react-aria press/click (single fire), hover via `data-hovered`, menu popovers through portals, hash navigation, switch/checkbox convergence, fraction-based scroll alignment with divergent list lengths.
+- Divergence surfacing end-to-end over postMessage: `△ matched by structure only` on the relabeled button; `✕ NO MATCH` on the branch-B-only menu item — mirror's stale UI visibly desyncs, as designed.
+- Leader switching mid-session (A→B), including focus-shadow flag handover via `state` messages; `both` mode wired but only spot-checked.
+- Latency: **avg ~13–21 ms, max 58 ms over 113 mirrored events** (Date.now deltas, capture in leader → replay result received at host; same machine). postMessage transport is not the bottleneck.
+
+### What changed vs the same-origin bridge
+
+- Focus shadowing, ghost cursor, and replay move **into the agent** (host cannot reach frame DOM); host keeps routing, roles, divergence log. The Part 5 element inspector and console capture were **not ported** (inspector's cross-pane probe would need an async message round-trip; unbuilt, not blocked).
+- The parent-side `inert` on the mirror wrapper still works (parent's own element) and still needs the in-frame focus patch beside it (Part 5 trap 1 unchanged).
+- Injection is cooperative: the app-under-test must include the agent script tag (dev-only). No script tag → no mirroring; arbitrary third-party pages remain out of scope, consistent with Part 3.
+
+### Unverified / open
+
+- History-API (`pushState`) routing is not captured — only hash routing and replayed link clicks. First expected gap on real apps.
+- React 19, non-Chrome browsers, HMR/dev-server websockets coexisting with the agent, `both` mode under sustained bidirectional use, N>2 panes.
+- Real Next.js/Vite apps as panes (demo used the Part 5 compiled bundle); `prototype-crossorigin/README-TEST.md` is the work-PC procedure for exactly this.
+
+### Verdict
+
+**Cross-origin is viable.** The bridge survives the loss of `contentDocument` intact: every Part 5 mirroring behavior reproduced across origins with ~15 ms added round-trip, and the agent/host split (agent = capture+replay+focus, host = routing+divergence UI) is the natural component seam. The real component should be built on this architecture; same-origin becomes a special case, not the design center.
