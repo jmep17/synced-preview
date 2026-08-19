@@ -4,7 +4,7 @@
 //   node fixtures/demo-server.mjs --shared-mock   # reproduce the desync
 //
 // Serves four origins (the host is the Vite app on :5173, started separately
-// via `npm run dev` — its panes embed these):
+// via `pnpm dev` — its panes embed these):
 //   :4401  demo app, branch A ("main")
 //   :4402  demo app, branch B ("feature/team-v2") — deliberately divergent
 //   :4403  stateful mock backend both apps call

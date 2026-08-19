@@ -4,9 +4,9 @@ Standalone servers for exercising the synced-preview bridge without real
 work apps. Not vendored, not shipped.
 
 ```sh
-npm run dev            # Vite app (:5173) + these fixtures together
+pnpm dev               # Vite app (:5173) + these fixtures together
 # or separately:
-npm run dev:fixtures   # node fixtures/demo-server.mjs
+pnpm dev:fixtures      # node fixtures/demo-server.mjs
 ```
 
 Origins:

@@ -1,16 +1,13 @@
 {
   "name": "synced-preview-workspace",
   "private": true,
-  "workspaces": [
-    "app",
-    "fixtures"
-  ],
+  "packageManager": "pnpm@10.15.0",
   "scripts": {
-    "dev": "concurrently -n vite,fixtures \"npm:dev -w app\" \"node fixtures/demo-server.mjs\"",
-    "dev:app": "npm run dev -w app",
+    "dev": "concurrently -n vite,fixtures \"pnpm --filter app dev\" \"node fixtures/demo-server.mjs\"",
+    "dev:app": "pnpm --filter app dev",
     "dev:fixtures": "node fixtures/demo-server.mjs",
-    "build": "npm run build -w app",
-    "preview": "npm run preview -w app",
+    "build": "pnpm --filter app build",
+    "preview": "pnpm --filter app preview",
     "test": "node --test tools/mock-proxy/mock-proxy.test.mjs"
   },
   "devDependencies": {

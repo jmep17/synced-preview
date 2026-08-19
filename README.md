@@ -16,12 +16,12 @@ Working product app (Vite + React, `docs/adr/0002`) with the vendorable componen
 ## Quick start
 
 ```sh
-npm install
-npm run dev        # Vite app :5173 + fixtures :4401–:4404
+pnpm install
+pnpm dev        # Vite app :5173 + fixtures :4401–:4404
 # open http://localhost:5173
 ```
 
-`npm test` runs the mock-proxy suite; `npm run build` emits `app/dist/` with an unhashed `sync-agent.js`.
+`pnpm test` runs the mock-proxy suite; `pnpm build` emits `app/dist/` with an unhashed `sync-agent.js`.
 
 ## Distribution
 
