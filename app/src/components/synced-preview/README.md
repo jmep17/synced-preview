@@ -76,6 +76,10 @@ Optional branch picker for pane B (replaces `srcB`):
     }),
     resolvePreviewUrl: branch => `http://localhost:300${branch === 'main' ? 1 : 2}/`,
     initialBranch: 'feature/x',
+    // Optional: fires with the branch name (or null) whenever the user
+    // changes the dropdown selection. Not fired by a listBranches-identity
+    // reset (see "Repo switching" below).
+    onBranchChange: branch => console.log('selected', branch),
   }}
 />
 ```
@@ -83,6 +87,31 @@ Optional branch picker for pane B (replaces `srcB`):
 The component knows nothing about GitHub; a GitHub-API-shaped
 `listBranches` lives in the consuming app (see `app/src/App.jsx` in the
 source repo for one).
+
+### Repo switching
+
+Changing the `listBranches` **identity** resets all picker state (branch
+list, selection, resolved pane B URL) — swap in a new `listBranches` to
+point the picker at a different repo; keep it referentially stable
+(`useMemo`/module-level) otherwise, or it will refetch on every render.
+
+```jsx
+// Consuming app: rebuild the picker whenever the active repo changes.
+const picker = useMemo(() => ({
+  listBranches: () => fetchBranches(owner, repo),
+  resolvePreviewUrl: branch => resolvePreview(owner, repo, branch),
+  initialBranch,
+  onBranchChange: branch => updateUrl(`${owner}/${repo}`, branch),
+}), [owner, repo]);
+
+<SyncedPreview srcA={srcA} branchPicker={picker} />
+```
+
+Each repo switch produces a new `listBranches`/`resolvePreviewUrl` pair
+(new function identity), which is exactly what triggers the component's
+refetch-and-reset — `useMemo` keeps the pair stable within a single repo.
+See `app/src/App.jsx` in the source repo for the full pattern (URL-synced
+repo + branch, `owner/repo` text input).
 
 ## Known limitations
 
