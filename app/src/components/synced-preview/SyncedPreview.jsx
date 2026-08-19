@@ -48,10 +48,17 @@ const S = {
  * @param {number} [props.height]
  * @param {object} [props.branchPicker] optional branch picker for pane B:
  *   listBranches: () => Promise<{ branches: string[], defaultBranch?: string, truncated?: boolean }>
- *     — must be referentially stable (module-level or useCallback); it is an
- *       effect dependency and an inline arrow would refetch every render.
+ *     — must be referentially stable (module-level, useCallback, or useMemo
+ *       keyed on the active repo) within a single repo; it is an effect
+ *       dependency and an inline arrow would refetch every render.
+ *       Changing its identity resets all picker state (branch list,
+ *       selection, resolved pane B URL) — this is the signal to use when
+ *       the consuming app switches which repo pane B points at.
  *   resolvePreviewUrl: (branch: string) => string | Promise<string>
  *   initialBranch?: string
+ *   onBranchChange?: (branch: string | null) => void
+ *     — fires with the branch name (or null) when the user changes the
+ *       dropdown selection; not fired by the listBranches-identity reset.
  */
 export default function SyncedPreview({ srcA, srcB, height = 560, branchPicker }) {
   const frameA = useRef(null), frameB = useRef(null), wrapA = useRef(null), wrapB = useRef(null);
@@ -80,6 +87,15 @@ export default function SyncedPreview({ srcA, srcB, height = 560, branchPicker }
 
   useEffect(() => {
     if (!listBranches) return;
+    // listBranches identity change = the consuming app switched repos:
+    // everything derived from the old repo is now meaningless.
+    setBranches(null);
+    setDefaultBranch(null);
+    setTruncated(false);
+    setBranchErr(null);
+    setResolvedSrcB(null);
+    setResolving(false);
+    setTargetBranch(branchPicker?.initialBranch ?? null);
     let dead = false;
     (async () => {
       try {
@@ -203,7 +219,11 @@ export default function SyncedPreview({ srcA, srcB, height = 560, branchPicker }
             <>
               <select
                 value={targetBranch ?? ''}
-                onChange={e => setTargetBranch(e.target.value || null)}
+                onChange={e => {
+                  const b = e.target.value || null;
+                  setTargetBranch(b);
+                  if (branchPicker.onBranchChange) branchPicker.onBranchChange(b);
+                }}
                 disabled={branches === null}
                 style={S.select}
               >
