@@ -165,16 +165,30 @@ createServer((req, res) => {
 
 /* ---------- stub GitHub API (branch picker demo, offline + deterministic) ---------- */
 
+// One-line-per-repo table so adding repos to the demo stays trivial.
+const ghRepos = {
+  'demo/webapp': { default_branch: 'main', branches: ['feature/team-v2', 'main'] },
+  'demo/site':   { default_branch: 'main', branches: ['redesign', 'main'] },
+};
+
 createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'authorization, accept');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
   res.setHeader('content-type', 'application/json; charset=utf-8');
   const path = new URL(req.url, 'http://x').pathname;
-  if (path === '/repos/demo/webapp') {
-    res.end(JSON.stringify({ default_branch: 'main' }));
-  } else if (path === '/repos/demo/webapp/branches') {
-    res.end(JSON.stringify([{ name: 'feature/team-v2' }, { name: 'main' }]));
+  const branchesMatch = path.match(/^\/repos\/([^/]+)\/([^/]+)\/branches$/);
+  const repoMatch = path.match(/^\/repos\/([^/]+)\/([^/]+)$/);
+  if (branchesMatch) {
+    const key = branchesMatch[1] + '/' + branchesMatch[2];
+    const entry = ghRepos[key];
+    if (!entry) { res.writeHead(404); res.end('{}'); return; }
+    res.end(JSON.stringify(entry.branches.map(name => ({ name }))));
+  } else if (repoMatch) {
+    const key = repoMatch[1] + '/' + repoMatch[2];
+    const entry = ghRepos[key];
+    if (!entry) { res.writeHead(404); res.end('{}'); return; }
+    res.end(JSON.stringify({ default_branch: entry.default_branch }));
   } else { res.writeHead(404); res.end('{}'); }
 }).listen(PORT_GH);
 
