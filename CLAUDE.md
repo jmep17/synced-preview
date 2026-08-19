@@ -10,15 +10,17 @@ The component is built here and **vendored** (copied as a source folder) into a 
 
 ## Status
 
-Product app up: Vite + React (ADR 0002), npm workspaces. The vendorable component lives at `app/src/components/synced-preview/` (Host + Agent + README). Dev fixtures (apps-under-test, stateful mock, GitHub stub) live in `fixtures/` — dev-only, never vendored or shipped.
+Product app up: Vite + React (ADR 0002), pnpm workspace. The vendorable component lives at `app/src/components/synced-preview/` (Host + Agent + README). Dev fixtures (apps-under-test, stateful mock, GitHub stub) live in `fixtures/` — dev-only, never vendored or shipped.
+
+The app shell (`app/src/App.jsx`) has a URL-synced repo/branch picker (`?repo=owner/name&branch=…`): the component stays GitHub-agnostic (generic `listBranches`/`resolvePreviewUrl`; swapping the `listBranches` identity signals a repo switch), while GitHub fetching and preview-URL mapping (`VITE_PREVIEW_URL_TEMPLATE`, demo fallback) live in the shell. Implementation plans and their status live in `plans/`.
 
 ## Commands
 
-- `npm install` — install all workspaces
-- `npm run dev` — Vite app (:5173) + fixture servers (:4401–:4404) together; open http://localhost:5173
-- `npm run dev:app` / `npm run dev:fixtures` — each alone
-- `npm test` — mock-proxy suite (`node --test`)
-- `npm run build` — production build of `app/` (emits unhashed `sync-agent.js` into `dist/`)
+- `pnpm install` — install all workspace dependencies
+- `pnpm dev` — Vite app (:5173) + fixture servers (:4401–:4404) together; open http://localhost:5173
+- `pnpm dev:app` / `pnpm dev:fixtures` — each alone
+- `pnpm test` — mock-proxy suite (`node --test`)
+- `pnpm build` — production build of `app/` (emits unhashed `sync-agent.js` into `dist/`)
 - `node fixtures/demo-server.mjs --shared-mock` — reproduce the shared-mock desync
 
 No lint tooling yet; add the command here when scaffolded.
